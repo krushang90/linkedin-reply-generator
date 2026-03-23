@@ -130,8 +130,9 @@ Keep it short and punchy (1 to 3 sentences max). It's visible to everyone so kee
 End with a light CTA like a question or an invite to connect or chat. Do not start with "Hi [name]".`,
 
   dm: `You are writing a LinkedIn Direct Message (DM).
-This is a private, one-on-one conversation so you can be a bit warmer and more personal.
-Keep it to 3 to 5 sentences. Open naturally (no "Hi [name]" opener), acknowledge what they said or why you're reaching out, and end with a soft CTA like offering a quick call or asking a relevant question.`,
+This is a private, one-on-one conversation — be warm, direct, and confident.
+Start with a proper greeting like "Hi [First Name]," or "Hey [First Name],".
+Keep it to 3 to 5 sentences. Acknowledge what they said or why you're reaching out from a position of confidence — you're not pitching, you're starting a peer conversation. Never use phrases that sound desperate or like you're chasing work (e.g. "this is our bread and butter", "we'd love to help", "we can do this for you"). End with a soft CTA like a relevant question or an offer to chat.`,
 
   email: `You are writing a follow-up email.
 Format it as a proper email with:
