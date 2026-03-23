@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import session from "express-session";
 import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createHash, createDecipheriv, scryptSync } from "crypto";
@@ -29,6 +30,10 @@ function resolveApiKey() {
 }
 
 const client = new Anthropic({ apiKey: resolveApiKey() });
+
+const geminiClient = process.env.GEMINI_API_KEY
+  ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  : null;
 
 // Hash helper — passwords are stored as SHA-256 hex in .env
 function sha256(str) {
@@ -180,6 +185,11 @@ Your job: Generate a thoughtful, engaging reply that:
 
 Generate a natural ${replyTypeLabel} reply.`;
 
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  // Try Claude first
   try {
     const stream = client.messages.stream({
       model: "claude-opus-4-6",
@@ -194,10 +204,6 @@ Generate a natural ${replyTypeLabel} reply.`;
       messages: [{ role: "user", content: userMessage }],
     });
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
     for await (const event of stream) {
       if (
         event.type === "content_block_delta" &&
@@ -209,18 +215,42 @@ Generate a natural ${replyTypeLabel} reply.`;
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
+    return;
   } catch (error) {
+    const isRateLimit = error instanceof Anthropic.RateLimitError;
+    const isOverload = error instanceof Anthropic.APIError && error.status === 529;
+
+    // Fall back to Gemini if rate-limited/overloaded and key is configured
+    if ((isRateLimit || isOverload) && geminiClient) {
+      try {
+        const model = geminiClient.getGenerativeModel({ model: "gemini-2.0-flash" });
+        const geminiStream = await model.generateContentStream(
+          `${systemPrompt}\n\n${userMessage}`
+        );
+
+        res.write(`data: ${JSON.stringify({ provider: "gemini" })}\n\n`);
+
+        for await (const chunk of geminiStream.stream) {
+          const text = chunk.text();
+          if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+        }
+
+        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+        res.end();
+        return;
+      } catch (geminiError) {
+        console.error("Gemini fallback failed:", geminiError);
+      }
+    }
+
+    // Both failed (or no fallback available)
     let message = "Something went wrong. Please try again.";
     let status = 500;
     if (error instanceof Anthropic.AuthenticationError) { message = "Invalid API key. Set ANTHROPIC_API_KEY."; status = 401; }
-    else if (error instanceof Anthropic.RateLimitError) { message = "Rate limited. Please try again shortly."; status = 429; }
+    else if (isRateLimit) { message = "Rate limited on both providers. Please try again shortly."; status = 429; }
 
-    if (res.headersSent) {
-      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
-      res.end();
-    } else {
-      res.status(status).json({ error: message });
-    }
+    res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+    res.end();
   }
 });
 
