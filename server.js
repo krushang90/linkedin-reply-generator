@@ -199,6 +199,11 @@ Generate a natural LinkedIn reply.`;
   }
 });
 
+// 404 handler for API routes
+app.use("/api/*", (req, res) => {
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.path}` });
+});
+
 // Global error handler — returns JSON for API routes so clients never see HTML error pages
 app.use((err, req, res, next) => {
   console.error(err);
