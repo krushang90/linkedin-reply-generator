@@ -146,6 +146,43 @@
 
     .company-btn.active .name { color: var(--blue); }
 
+    .reply-type-toggle {
+      display: flex;
+      gap: 8px;
+    }
+
+    .reply-type-btn {
+      flex: 1;
+      padding: 10px 14px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: var(--white);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.15s;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .reply-type-btn:hover {
+      border-color: var(--blue);
+      background: var(--blue-light);
+      color: var(--blue);
+    }
+
+    .reply-type-btn.active {
+      border-color: var(--blue);
+      background: var(--blue-light);
+      color: var(--blue);
+    }
+
+    .reply-type-btn .type-icon {
+      font-size: 16px;
+      display: block;
+      margin-bottom: 3px;
+    }
+
     textarea {
       width: 100%;
       border: 1px solid var(--border);
@@ -338,8 +375,23 @@
   </div>
 
   <div class="card">
-    <label for="comment">LinkedIn comment or message</label>
-    <textarea id="comment" placeholder="Paste the comment or message you want to reply to…"></textarea>
+    <label>What type of reply do you need?</label>
+    <div class="reply-type-toggle">
+      <button class="reply-type-btn active" data-value="comment" onclick="selectReplyType(this)">
+        <span class="type-icon">💬</span>Post Comment
+      </button>
+      <button class="reply-type-btn" data-value="dm" onclick="selectReplyType(this)">
+        <span class="type-icon">✉️</span>Direct Message
+      </button>
+      <button class="reply-type-btn" data-value="email" onclick="selectReplyType(this)">
+        <span class="type-icon">📧</span>Email
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <label for="comment">Message or post to reply to</label>
+    <textarea id="comment" placeholder="Paste the comment, message, or email you want to reply to…"></textarea>
 
     <div style="margin-top: 18px;">
       <div class="optional-label">
@@ -359,7 +411,7 @@
 
   <div class="card output-card" id="outputCard">
     <div class="output-header">
-      <div class="output-title">Generated Reply</div>
+      <div class="output-title" id="outputTitle">Generated Reply</div>
       <button class="copy-btn" id="copyBtn" onclick="copyReply()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -377,12 +429,25 @@
 
 <script>
   let selectedCompany = "yashvi_global";
+  let selectedReplyType = "comment";
   let fullReply = "";
+
+  const replyTypeLabels = {
+    comment: "Post Comment Reply",
+    dm: "Direct Message",
+    email: "Email"
+  };
 
   function selectCompany(btn) {
     document.querySelectorAll(".company-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedCompany = btn.dataset.value;
+  }
+
+  function selectReplyType(btn) {
+    document.querySelectorAll(".reply-type-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedReplyType = btn.dataset.value;
   }
 
   async function generate() {
@@ -400,6 +465,8 @@
 
     const outputCard = document.getElementById("outputCard");
     const outputText = document.getElementById("outputText");
+    const outputTitle = document.getElementById("outputTitle");
+    outputTitle.textContent = replyTypeLabels[selectedReplyType] || "Generated Reply";
     outputCard.classList.add("visible");
     outputText.innerHTML = '<span class="cursor"></span>';
 
@@ -407,7 +474,7 @@
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment, company: selectedCompany, context }),
+        body: JSON.stringify({ comment, company: selectedCompany, context, replyType: selectedReplyType }),
       });
 
       if (!res.ok) {
