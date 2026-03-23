@@ -11,7 +11,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 // Decrypt ENCRYPTED_API_KEY if present, otherwise fall back to ANTHROPIC_API_KEY
-function resolveApiKey() {
+function resolveAnthropicKey() {
   const encrypted = process.env.ENCRYPTED_API_KEY;
   const encKey = process.env.ENCRYPTION_KEY;
 
@@ -25,15 +25,19 @@ function resolveApiKey() {
     return decipher.update(dataHex, "hex", "utf8") + decipher.final("utf8");
   }
 
-  if (process.env.ANTHROPIC_API_KEY) return process.env.ANTHROPIC_API_KEY;
-  throw new Error("No API key found. Set ENCRYPTED_API_KEY + ENCRYPTION_KEY, or ANTHROPIC_API_KEY.");
+  return process.env.ANTHROPIC_API_KEY || null;
 }
 
-const client = new Anthropic({ apiKey: resolveApiKey() });
+const anthropicKey = resolveAnthropicKey();
+const claudeClient = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : null;
 
 const geminiClient = process.env.GEMINI_API_KEY
   ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   : null;
+
+if (!geminiClient && !claudeClient) {
+  throw new Error("No AI provider configured. Set GEMINI_API_KEY and/or ANTHROPIC_API_KEY.");
+}
 
 // Hash helper — passwords are stored as SHA-256 hex in .env
 function sha256(str) {
@@ -189,9 +193,36 @@ Generate a natural ${replyTypeLabel} reply.`;
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
 
-  // Try Claude first
+  // Try Gemini first (primary)
+  if (geminiClient) {
+    try {
+      const model = geminiClient.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const geminiStream = await model.generateContentStream(
+        `${systemPrompt}\n\n${userMessage}`
+      );
+
+      for await (const chunk of geminiStream.stream) {
+        const text = chunk.text();
+        if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
+      }
+
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+      return;
+    } catch (geminiError) {
+      console.error("Gemini failed, falling back to Claude:", geminiError.message);
+    }
+  }
+
+  // Fall back to Claude
+  if (!claudeClient) {
+    res.write(`data: ${JSON.stringify({ error: "No AI provider available. Set GEMINI_API_KEY or ANTHROPIC_API_KEY." })}\n\n`);
+    res.end();
+    return;
+  }
+
   try {
-    const stream = client.messages.stream({
+    const stream = claudeClient.messages.stream({
       model: "claude-opus-4-6",
       max_tokens: 512,
       system: [
@@ -204,6 +235,8 @@ Generate a natural ${replyTypeLabel} reply.`;
       messages: [{ role: "user", content: userMessage }],
     });
 
+    res.write(`data: ${JSON.stringify({ provider: "claude" })}\n\n`);
+
     for await (const event of stream) {
       if (
         event.type === "content_block_delta" &&
@@ -215,40 +248,10 @@ Generate a natural ${replyTypeLabel} reply.`;
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
-    return;
   } catch (error) {
-    const isRateLimit = error instanceof Anthropic.RateLimitError;
-    const isOverload = error instanceof Anthropic.APIError && error.status === 529;
-
-    // Fall back to Gemini if rate-limited/overloaded and key is configured
-    if ((isRateLimit || isOverload) && geminiClient) {
-      try {
-        const model = geminiClient.getGenerativeModel({ model: "gemini-2.0-flash" });
-        const geminiStream = await model.generateContentStream(
-          `${systemPrompt}\n\n${userMessage}`
-        );
-
-        res.write(`data: ${JSON.stringify({ provider: "gemini" })}\n\n`);
-
-        for await (const chunk of geminiStream.stream) {
-          const text = chunk.text();
-          if (text) res.write(`data: ${JSON.stringify({ text })}\n\n`);
-        }
-
-        res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-        res.end();
-        return;
-      } catch (geminiError) {
-        console.error("Gemini fallback failed:", geminiError);
-      }
-    }
-
-    // Both failed (or no fallback available)
     let message = "Something went wrong. Please try again.";
-    let status = 500;
-    if (error instanceof Anthropic.AuthenticationError) { message = "Invalid API key. Set ANTHROPIC_API_KEY."; status = 401; }
-    else if (isRateLimit) { message = "Rate limited on both providers. Please try again shortly."; status = 429; }
-
+    if (error instanceof Anthropic.AuthenticationError) message = "Invalid Claude API key.";
+    else if (error instanceof Anthropic.RateLimitError) message = "Both providers are rate limited. Please try again shortly.";
     res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
     res.end();
   }
