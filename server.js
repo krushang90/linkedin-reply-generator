@@ -185,13 +185,27 @@ Generate a natural LinkedIn reply.`;
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (error) {
-    if (error instanceof Anthropic.AuthenticationError) {
-      res.status(401).json({ error: "Invalid API key. Set ANTHROPIC_API_KEY." });
-    } else if (error instanceof Anthropic.RateLimitError) {
-      res.status(429).json({ error: "Rate limited. Please try again shortly." });
+    let message = "Something went wrong. Please try again.";
+    let status = 500;
+    if (error instanceof Anthropic.AuthenticationError) { message = "Invalid API key. Set ANTHROPIC_API_KEY."; status = 401; }
+    else if (error instanceof Anthropic.RateLimitError) { message = "Rate limited. Please try again shortly."; status = 429; }
+
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+      res.end();
     } else {
-      res.status(500).json({ error: "Something went wrong. Please try again." });
+      res.status(status).json({ error: message });
     }
+  }
+});
+
+// Global error handler — returns JSON for API routes so clients never see HTML error pages
+app.use((err, req, res, next) => {
+  console.error(err);
+  if (req.path.startsWith("/api/")) {
+    res.status(500).json({ error: "Internal server error." });
+  } else {
+    res.status(500).send("Internal server error.");
   }
 });
 
