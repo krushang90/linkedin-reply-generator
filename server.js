@@ -116,17 +116,34 @@ Services include:
 const TONE_INSTRUCTIONS = `
 You are responding from a personal LinkedIn profile on behalf of the company.
 Tone guidelines:
-- Warm, professional, and conversational (not salesy or pushy)
+- Warm, friendly, and conversational (not salesy or pushy)
 - Sound like a real person, not a corporate bot
-- Brief and to the point — LinkedIn replies should be 2-5 sentences max
-- Always end with a soft CTA: offer a quick call, ask a follow-up question, or invite them to connect
-- Don't start with "Hi [name]" — just get into the reply naturally
+- Natural and approachable, the way you'd talk to someone you just met at a networking event
+- Never use em dashes (do not use the -- or the actual em dash character)
 - Don't use buzzwords like "synergy", "leverage", "holistic"
 - Avoid emojis unless absolutely natural in context
 `;
 
+const REPLY_TYPE_INSTRUCTIONS = {
+  comment: `You are writing a public comment reply on a LinkedIn post.
+Keep it short and punchy (1 to 3 sentences max). It's visible to everyone so keep it friendly and on-point.
+End with a light CTA like a question or an invite to connect or chat. Do not start with "Hi [name]".`,
+
+  dm: `You are writing a LinkedIn Direct Message (DM).
+This is a private, one-on-one conversation so you can be a bit warmer and more personal.
+Keep it to 3 to 5 sentences. Open naturally (no "Hi [name]" opener), acknowledge what they said or why you're reaching out, and end with a soft CTA like offering a quick call or asking a relevant question.`,
+
+  email: `You are writing a follow-up email.
+Format it as a proper email with:
+- Subject: (a short, natural subject line)
+- A friendly greeting (e.g. "Hey [First Name]," or "Hi [First Name],")
+- 2 to 3 short paragraphs: acknowledge them, show relevance, soft CTA
+- A warm sign-off (e.g. "Cheers," or "Looking forward to connecting,") followed by the sender's name placeholder [Your Name]
+Keep the tone friendly and human, not stiff or corporate.`,
+};
+
 app.post("/api/generate", async (req, res) => {
-  const { comment, company, context } = req.body;
+  const { comment, company, context, replyType } = req.body;
 
   if (!comment || !company) {
     return res.status(400).json({ error: "comment and company are required" });
@@ -137,23 +154,30 @@ app.post("/api/generate", async (req, res) => {
     return res.status(400).json({ error: "invalid company" });
   }
 
-  const systemPrompt = `You are a LinkedIn reply generator for ${profile.name}.
+  const type = replyType && REPLY_TYPE_INSTRUCTIONS[replyType] ? replyType : "comment";
+  const replyTypeInstructions = REPLY_TYPE_INSTRUCTIONS[type];
+
+  const systemPrompt = `You are a reply generator for ${profile.name}.
 
 Company Profile:
 ${profile.description}
 
 ${TONE_INSTRUCTIONS}
 
-Your job: Given a LinkedIn comment or message someone left on a ${profile.name} post (or sent to the profile), generate a thoughtful, engaging reply that:
+${replyTypeInstructions}
+
+Your job: Generate a thoughtful, engaging reply that:
 1. Acknowledges what they said
 2. Subtly reinforces ${profile.name}'s value/expertise
 3. Moves the conversation forward toward a potential business relationship
 4. Feels like it came from a real person, not a marketing team`;
 
-  const userMessage = `LinkedIn comment/message to reply to:
+  const replyTypeLabel = { comment: "LinkedIn post comment", dm: "LinkedIn DM", email: "email" }[type];
+
+  const userMessage = `Message or post to reply to:
 "${comment}"${context ? `\n\nAdditional context about this person or conversation:\n${context}` : ""}
 
-Generate a natural LinkedIn reply.`;
+Generate a natural ${replyTypeLabel} reply.`;
 
   try {
     const stream = client.messages.stream({
