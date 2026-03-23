@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LinkedIn Reply Generator — Yashvi</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --blue: #0a66c2;
+      --blue-light: #e8f0fb;
+      --blue-dark: #004182;
+      --text: #1c1c1c;
+      --text-muted: #666;
+      --border: #dde1e7;
+      --bg: #f4f5f7;
+      --white: #ffffff;
+      --green: #057642;
+      --green-light: #e6f4ec;
+      --radius: 10px;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header .logo svg { width: 28px; height: 28px; }
+
+    header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    header .badge {
+      background: var(--blue-light);
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 20px;
+      letter-spacing: 0.3px;
+    }
+
+    header .logout {
+      margin-left: auto;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    header .logout:hover { background: var(--bg); color: var(--text); }
+
+    main {
+      flex: 1;
+      max-width: 760px;
+      width: 100%;
+      margin: 32px auto;
+      padding: 0 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .company-toggle {
+      display: flex;
+      gap: 10px;
+    }
+
+    .company-btn {
+      flex: 1;
+      padding: 12px 16px;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      background: var(--white);
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s;
+    }
+
+    .company-btn:hover {
+      border-color: var(--blue);
+      background: var(--blue-light);
+    }
+
+    .company-btn.active {
+      border-color: var(--blue);
+      background: var(--blue-light);
+    }
+
+    .company-btn .name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .company-btn .desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .company-btn.active .name { color: var(--blue); }
+
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      resize: vertical;
+      transition: border-color 0.15s;
+      outline: none;
+      line-height: 1.5;
+    }
+
+    textarea:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10,102,194,0.1); }
+
+    textarea::placeholder { color: #aaa; }
+
+    #comment { min-height: 100px; }
+    #context { min-height: 60px; }
+
+    .optional-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .optional-label span {
+      font-size: 11px;
+      color: #aaa;
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .generate-btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--blue);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .generate-btn:hover:not(:disabled) { background: var(--blue-dark); }
+    .generate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .output-card { display: none; }
+    .output-card.visible { display: block; }
+
+    .output-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .output-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .copy-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--white);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover { background: var(--bg); border-color: #bbb; }
+
+    .copy-btn.copied {
+      border-color: var(--green);
+      color: var(--green);
+      background: var(--green-light);
+    }
+
+    .output-text {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--text);
+      white-space: pre-wrap;
+      min-height: 60px;
+    }
+
+    .output-text .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 16px;
+      background: var(--blue);
+      margin-left: 1px;
+      animation: blink 0.8s step-end infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    .regen-btn {
+      margin-top: 16px;
+      padding: 9px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--white);
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .regen-btn:hover { background: var(--bg); color: var(--text); }
+
+    .error-msg {
+      background: #fff5f5;
+      border: 1px solid #fcc;
+      color: #c0392b;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .error-msg.visible { display: block; }
+
+    footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="24" height="24" rx="4" fill="#0a66c2"/>
+      <path d="M6.5 9.5H4v9h2.5v-9zM5.25 8.25a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM10 18.5h-2.5V9.5H10v1.3c.6-.9 1.7-1.55 3-1.55 2.2 0 3.5 1.5 3.5 4.2v5.05H14V13.7c0-1.5-.5-2.5-1.8-2.5-1.2 0-2 .8-2.2 1.7v5.6z" fill="white"/>
+    </svg>
+    <h1>LinkedIn Reply Generator</h1>
+  </div>
+  <span class="badge">Yashvi</span>
+  <a href="/logout" class="logout">Sign out</a>
+</header>
+
+<main>
+  <div class="card">
+    <label>Which company is this for?</label>
+    <div class="company-toggle">
+      <button class="company-btn active" data-value="yashvi_global" onclick="selectCompany(this)">
+        <div class="name">Yashvi Global</div>
+        <div class="desc">360° digital marketing + software dev</div>
+      </button>
+      <button class="company-btn" data-value="yashvi_konnect" onclick="selectCompany(this)">
+        <div class="name">Yashvi Konnect</div>
+        <div class="desc">E-commerce focused services</div>
+      </button>
+    </div>
+  </div>
+
+  <div class="card">
+    <label for="comment">LinkedIn comment or message</label>
+    <textarea id="comment" placeholder="Paste the comment or message you want to reply to…"></textarea>
+
+    <div style="margin-top: 18px;">
+      <div class="optional-label">
+        <label for="context" style="margin-bottom:0;">Context</label>
+        <span>optional</span>
+      </div>
+      <textarea id="context" placeholder="Any extra context? e.g. 'They run a Shopify store with 10k monthly visitors' or 'They asked about pricing'"></textarea>
+    </div>
+
+    <button class="generate-btn" id="generateBtn" onclick="generate()" style="margin-top: 20px;">
+      <div class="spinner" id="spinner"></div>
+      <span id="btnText">Generate Reply</span>
+    </button>
+
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <div class="card output-card" id="outputCard">
+    <div class="output-header">
+      <div class="output-title">Generated Reply</div>
+      <button class="copy-btn" id="copyBtn" onclick="copyReply()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </svg>
+        Copy
+      </button>
+    </div>
+    <div class="output-text" id="outputText"></div>
+    <button class="regen-btn" onclick="generate()">Regenerate</button>
+  </div>
+</main>
+
+<footer>Powered by Claude · Yashvi Global &amp; Yashvi Konnect</footer>
+
+<script>
+  let selectedCompany = "yashvi_global";
+  let fullReply = "";
+
+  function selectCompany(btn) {
+    document.querySelectorAll(".company-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    selectedCompany = btn.dataset.value;
+  }
+
+  async function generate() {
+    const comment = document.getElementById("comment").value.trim();
+    const context = document.getElementById("context").value.trim();
+
+    if (!comment) {
+      showError("Please paste a comment or message to reply to.");
+      return;
+    }
+
+    hideError();
+    setLoading(true);
+    fullReply = "";
+
+    const outputCard = document.getElementById("outputCard");
+    const outputText = document.getElementById("outputText");
+    outputCard.classList.add("visible");
+    outputText.innerHTML = '<span class="cursor"></span>';
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment, company: selectedCompany, context }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Something went wrong");
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const data = JSON.parse(line.slice(6));
+          if (data.done) break;
+          if (data.text) {
+            fullReply += data.text;
+            outputText.innerHTML = escapeHtml(fullReply) + '<span class="cursor"></span>';
+          }
+        }
+      }
+
+      outputText.textContent = fullReply;
+    } catch (err) {
+      outputCard.classList.remove("visible");
+      showError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function copyReply() {
+    if (!fullReply) return;
+    navigator.clipboard.writeText(fullReply).then(() => {
+      const btn = document.getElementById("copyBtn");
+      btn.classList.add("copied");
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!`;
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy`;
+      }, 2000);
+    });
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById("generateBtn");
+    const spinner = document.getElementById("spinner");
+    const text = document.getElementById("btnText");
+    btn.disabled = on;
+    spinner.style.display = on ? "block" : "none";
+    text.textContent = on ? "Generating…" : "Generate Reply";
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("errorMsg");
+    el.textContent = msg;
+    el.classList.add("visible");
+  }
+
+  function hideError() {
+    document.getElementById("errorMsg").classList.remove("visible");
+  }
+
+  function escapeHtml(str) {
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  document.getElementById("comment").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) generate();
+  });
+</script>
+
+</body>
+</html>
