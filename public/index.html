@@ -300,7 +300,6 @@
     @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
 
     .regen-btn {
-      margin-top: 16px;
       padding: 9px 16px;
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -312,6 +311,64 @@
     }
 
     .regen-btn:hover { background: var(--bg); color: var(--text); }
+
+    .output-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .email-now-btn {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border: 1px solid #0a66c2;
+      border-radius: 6px;
+      background: var(--blue-light);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--blue);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .email-now-btn:hover { background: var(--blue); color: white; }
+    .email-now-btn.visible { display: flex; }
+
+    .recipient-field {
+      display: none;
+      margin-top: 18px;
+    }
+
+    .recipient-field.visible { display: block; }
+
+    .recipient-field input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-family: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .recipient-field input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(10,102,194,0.1); }
+    .recipient-field input::placeholder { color: #aaa; }
+
+    .char-counter {
+      display: none;
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: right;
+    }
+
+    .char-counter.visible { display: block; }
+    .char-counter.over { color: #c0392b; font-weight: 600; }
 
     .error-msg {
       background: #fff5f5;
@@ -386,6 +443,9 @@
       <button class="reply-type-btn" data-value="email" onclick="selectReplyType(this)">
         <span class="type-icon">📧</span>Email
       </button>
+      <button class="reply-type-btn" data-value="connection_request" onclick="selectReplyType(this)">
+        <span class="type-icon">🤝</span>Connection Request
+      </button>
     </div>
   </div>
 
@@ -399,6 +459,14 @@
         <span>optional</span>
       </div>
       <textarea id="context" placeholder="Any extra context? e.g. 'They run a Shopify store with 10k monthly visitors' or 'They asked about pricing'"></textarea>
+    </div>
+
+    <div class="recipient-field" id="recipientField">
+      <div class="optional-label" style="margin-top:18px;">
+        <label for="recipientEmail" style="margin-bottom:0;">Recipient Email</label>
+        <span>optional</span>
+      </div>
+      <input type="email" id="recipientEmail" placeholder="e.g. john@example.com" />
     </div>
 
     <button class="generate-btn" id="generateBtn" onclick="generate()" style="margin-top: 20px;">
@@ -421,7 +489,17 @@
       </button>
     </div>
     <div class="output-text" id="outputText"></div>
-    <button class="regen-btn" onclick="generate()">Regenerate</button>
+    <div class="char-counter" id="charCounter">0 / 300 characters</div>
+    <div class="output-actions">
+      <button class="regen-btn" onclick="generate()">Regenerate</button>
+      <button class="email-now-btn" id="emailNowBtn" onclick="openEmail()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        Email Now
+      </button>
+    </div>
   </div>
 </main>
 
@@ -435,7 +513,8 @@
   const replyTypeLabels = {
     comment: "Post Comment Reply",
     dm: "Direct Message",
-    email: "Email"
+    email: "Email",
+    connection_request: "Connection Request"
   };
 
   function selectCompany(btn) {
@@ -448,6 +527,11 @@
     document.querySelectorAll(".reply-type-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     selectedReplyType = btn.dataset.value;
+    const isEmail = selectedReplyType === "email";
+    const isConnection = selectedReplyType === "connection_request";
+    document.getElementById("recipientField").classList.toggle("visible", isEmail);
+    document.getElementById("emailNowBtn").classList.toggle("visible", isEmail && !!fullReply);
+    document.getElementById("charCounter").classList.toggle("visible", isConnection && !!fullReply);
   }
 
   async function generate() {
@@ -501,17 +585,57 @@
           if (data.text) {
             fullReply += data.text;
             outputText.innerHTML = escapeHtml(fullReply) + '<span class="cursor"></span>';
+            if (selectedReplyType === "connection_request") updateCharCounter();
           }
         }
       }
 
       outputText.textContent = fullReply;
+      if (selectedReplyType === "email") {
+        document.getElementById("emailNowBtn").classList.add("visible");
+      }
+      if (selectedReplyType === "connection_request") {
+        updateCharCounter();
+        document.getElementById("charCounter").classList.add("visible");
+      }
     } catch (err) {
       outputCard.classList.remove("visible");
       showError(err.message);
     } finally {
       setLoading(false);
     }
+  }
+
+  function updateCharCounter() {
+    const counter = document.getElementById("charCounter");
+    const len = fullReply.length;
+    counter.textContent = `${len} / 300 characters`;
+    counter.classList.toggle("over", len > 300);
+  }
+
+  function openEmail() {
+    if (!fullReply) return;
+    const lines = fullReply.split("\n");
+    let subject = "";
+    let bodyStart = 0;
+
+    // Parse "Subject: ..." from first non-empty line
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].trim();
+      if (trimmed.toLowerCase().startsWith("subject:")) {
+        subject = trimmed.slice(8).trim();
+        bodyStart = i + 1;
+        break;
+      }
+    }
+
+    // Skip blank lines after subject
+    while (bodyStart < lines.length && lines[bodyStart].trim() === "") bodyStart++;
+
+    const body = lines.slice(bodyStart).join("\n");
+    const to = document.getElementById("recipientEmail").value.trim();
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
   }
 
   function copyReply() {
