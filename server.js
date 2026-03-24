@@ -148,8 +148,15 @@ Format it as a proper email with:
 - Subject: (a short, natural subject line)
 - A friendly greeting (e.g. "Hey [First Name]," or "Hi [First Name],")
 - 2 to 3 short paragraphs: acknowledge them, show relevance, soft CTA
-- A warm sign-off (e.g. "Cheers," or "Looking forward to connecting,") followed by the sender's name placeholder [Your Name]
+- A warm sign-off (e.g. "Cheers," or "Looking forward to connecting,") — end after the sign-off word, do not add a name placeholder
 Keep the tone friendly and human, not stiff or corporate.`,
+
+  connection_request: `You are writing a LinkedIn connection request note.
+STRICT LIMIT: The entire message must be 300 characters or fewer (including spaces).
+Be warm and personal — mention something specific about them or a genuine reason to connect.
+Do NOT use a greeting like "Hi [name]" — jump straight into the reason for connecting.
+No fluff, no generic "I'd love to connect" — make it feel intentional and human.
+Output only the connection request message, nothing else.`,
 };
 
 app.post("/api/generate", async (req, res) => {
@@ -164,7 +171,8 @@ app.post("/api/generate", async (req, res) => {
     return res.status(400).json({ error: "invalid company" });
   }
 
-  const type = replyType && REPLY_TYPE_INSTRUCTIONS[replyType] ? replyType : "comment";
+  const validTypes = Object.keys(REPLY_TYPE_INSTRUCTIONS);
+  const type = validTypes.includes(replyType) ? replyType : "comment";
   const replyTypeInstructions = REPLY_TYPE_INSTRUCTIONS[type];
 
   const systemPrompt = `You are a reply generator for ${profile.name}.
@@ -182,7 +190,7 @@ Your job: Generate a thoughtful, engaging reply that:
 3. Moves the conversation forward toward a potential business relationship
 4. Feels like it came from a real person, not a marketing team`;
 
-  const replyTypeLabel = { comment: "LinkedIn post comment", dm: "LinkedIn DM", email: "email" }[type];
+  const replyTypeLabel = { comment: "LinkedIn post comment", dm: "LinkedIn DM", email: "email", connection_request: "LinkedIn connection request" }[type];
 
   const userMessage = `Message or post to reply to:
 "${comment}"${context ? `\n\nAdditional context about this person or conversation:\n${context}` : ""}
